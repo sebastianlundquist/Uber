@@ -14,8 +14,11 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -42,6 +45,8 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 	LocationListener locationListener;
 	Button requestUberButton;
 	Boolean requestActive = false;
+	Handler handler = new Handler();
+	TextView infoTextView;
 
 	public void updateMap(Location location) {
 		LatLng userLocation = new LatLng(location.getLatitude(), location.getLongitude());
@@ -50,8 +55,29 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 		mMap.addMarker(new MarkerOptions().position(userLocation).title("Your Location"));
 	}
 
-	public void requestUber(View view) {
+	public void checkForUpdates() {
+		ParseQuery<ParseObject> query = ParseQuery.getQuery("Request");
+		query.whereEqualTo("username", ParseUser.getCurrentUser().getUsername());
+		query.whereExists("driverUsername");
+		query.findInBackground(new FindCallback<ParseObject>() {
+			@Override
+			public void done(List<ParseObject> objects, ParseException e) {
+				if (e == null && objects.size() > 0) {
+					infoTextView.setText("Your driver is on the way!");
+					requestUberButton.setVisibility(View.INVISIBLE);
+				}
 
+				handler.postDelayed(new Runnable() {
+					@Override
+					public void run() {
+						checkForUpdates();
+					}
+				}, 3000);
+			}
+		});
+	}
+
+	public void requestUber(View view) {
 		if (requestActive) {
 			ParseQuery<ParseObject> query = new ParseQuery<ParseObject>("Request");
 			query.whereEqualTo("username", ParseUser.getCurrentUser().getUsername());
@@ -66,6 +92,12 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 							requestActive = false;
 							requestUberButton.setText("Request \u040F\u0432\u0454\u0433");
 						}
+						handler.postDelayed(new Runnable() {
+							@Override
+							public void run() {
+								checkForUpdates();
+							}
+						}, 3000);
 					}
 				}
 			});
@@ -85,6 +117,7 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 							if (e == null) {
 								requestActive = true;
 								requestUberButton.setText("Cancel \u040F\u0432\u0454\u0433");
+								checkForUpdates();
 							}
 						}
 					});
@@ -113,6 +146,7 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 		mapFragment.getMapAsync(this);
 		requestUberButton = findViewById(R.id.requestUberButton);
 		requestUberButton.setText("Request \u040F\u0432\u0454\u0433");
+		infoTextView = findViewById(R.id.infoTextView);
 		ParseQuery<ParseObject> query = new ParseQuery<ParseObject>("Request");
 		query.whereEqualTo("username", ParseUser.getCurrentUser().getUsername());
 		query.findInBackground(new FindCallback<ParseObject>() {
@@ -122,6 +156,7 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 					if (objects.size() > 0) {
 						requestActive = true;
 						requestUberButton.setText("Cancel \u040F\u0432\u0454\u0433");
+						checkForUpdates();
 					}
 				}
 			}
