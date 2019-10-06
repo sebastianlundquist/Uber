@@ -3,6 +3,7 @@ package com.sebastianlundquist.uber;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
+import android.content.Intent;
 import android.graphics.PorterDuff;
 import android.os.Bundle;
 import android.util.Log;
@@ -14,8 +15,16 @@ import com.parse.LogInCallback;
 import com.parse.ParseAnonymousUtils;
 import com.parse.ParseException;
 import com.parse.ParseUser;
+import com.parse.SaveCallback;
 
 public class MainActivity extends AppCompatActivity {
+
+	public void redirect() {
+		if (ParseUser.getCurrentUser().get("isRiderOrDriver").equals("rider")) {
+			Intent intent = new Intent(getApplicationContext(), RiderActivity.class);
+			startActivity(intent);
+		}
+	}
 
 	public void getStarted(View view) {
 		Switch userSwitch = findViewById(R.id.userSwitch);
@@ -24,6 +33,12 @@ public class MainActivity extends AppCompatActivity {
 			userType = "driver";
 		}
 		ParseUser.getCurrentUser().put("isRiderOrDriver", userType);
+		ParseUser.getCurrentUser().saveInBackground(new SaveCallback() {
+			@Override
+			public void done(ParseException e) {
+				redirect();
+			}
+		});
 		Log.i("Info", "Redirecting as " + ParseUser.getCurrentUser().get("isRiderOrDriver"));
 	}
 
@@ -53,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
 		else {
 			if (ParseUser.getCurrentUser().get("isRiderOrDriver") != null) {
 				Log.i("Info", "Redirecting as " + ParseUser.getCurrentUser().get("isRiderOrDriver"));
+				redirect();
 			}
 		}
 	}
