@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">Uber</string>
     <string name="login">Login</string>
+    <string name="logout">Logout</string>
     <string name="rider">Rider</string>
     <string name="driver">Driver</string>
     <string name="title_activity_rider">Map</string>
