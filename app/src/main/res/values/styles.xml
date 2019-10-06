@@ -1,0 +1,20 @@
+<resources>
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="actionBarTheme">@style/AppTheme.ActionBarTheme</item>
+    </style>
+    <style name="SwitchTheme" parent="Theme.AppCompat.Light">
+        <item name="android:colorControlActivated">#FFFFFF</item>
+        <item name="android:colorControlNormal">#FFFFFF</item>
+    </style>
+    <style name="AppTheme.ActionBarTheme" parent="@style/ThemeOverlay.AppCompat.ActionBar">
+        <item name="colorControlNormal">#000000</item>
+        <item name="actionOverflowButtonStyle">@style/actionOverflowButtonStyle</item>
+    </style>
+
+    <style name="actionOverflowButtonStyle" parent="@style/Widget.AppCompat.ActionButton.Overflow">
+        <item name="android:tint">#000000</item>
+    </style>
+</resources>
