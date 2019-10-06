@@ -12,20 +12,23 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
+import android.util.TypedValue;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.parse.FindCallback;
 import com.parse.ParseException;
@@ -35,6 +38,7 @@ import com.parse.ParseQuery;
 import com.parse.ParseUser;
 import com.parse.SaveCallback;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class RiderActivity extends FragmentActivity implements OnMapReadyCallback {
@@ -45,14 +49,17 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 	LocationListener locationListener;
 	Button requestUberButton;
 	Boolean requestActive = false;
+	Boolean driverActive = false;
 	Handler handler = new Handler();
 	TextView infoTextView;
 
 	public void updateMap(Location location) {
-		LatLng userLocation = new LatLng(location.getLatitude(), location.getLongitude());
-		mMap.clear();
-		mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 15));
-		mMap.addMarker(new MarkerOptions().position(userLocation).title("Your Location"));
+		if (!driverActive) {
+			LatLng userLocation = new LatLng(location.getLatitude(), location.getLongitude());
+			mMap.clear();
+			mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 15));
+			mMap.addMarker(new MarkerOptions().position(userLocation).title("Your Location"));
+		}
 	}
 
 	public void checkForUpdates() {
@@ -63,8 +70,80 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 			@Override
 			public void done(List<ParseObject> objects, ParseException e) {
 				if (e == null && objects.size() > 0) {
-					infoTextView.setText("Your driver is on the way!");
-					requestUberButton.setVisibility(View.INVISIBLE);
+					driverActive = true;
+					ParseQuery<ParseUser> userParseQuery = ParseUser.getQuery();
+					userParseQuery.whereEqualTo("username", objects.get(0).getString("driverUsername"));
+					userParseQuery.findInBackground(new FindCallback<ParseUser>() {
+						@Override
+						public void done(List<ParseUser> objects, ParseException e) {
+							if (e == null && objects.size() > 0) {
+								ParseGeoPoint driverLocation = objects.get(0).getParseGeoPoint("location");
+								if (ContextCompat.checkSelfPermission(RiderActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+									Location lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+									if (lastKnownLocation != null) {
+										ParseGeoPoint userLocation = new ParseGeoPoint(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
+										double distance = driverLocation.distanceInKilometersTo(userLocation);
+
+										if (distance < 0.1) {
+											infoTextView.setText("Your driver is here!");
+											ParseQuery<ParseObject> query = new ParseQuery<ParseObject>("Request");
+											query.whereEqualTo("username", ParseUser.getCurrentUser().getUsername());
+											query.findInBackground(new FindCallback<ParseObject>() {
+												@Override
+												public void done(List<ParseObject> objects, ParseException e) {
+													if (e == null) {
+														for (ParseObject object : objects) {
+															object.deleteInBackground();
+														}
+													}
+												}
+											});
+											handler.postDelayed(new Runnable() {
+												@Override
+												public void run() {
+													infoTextView.setText("");
+													requestUberButton.setVisibility(View.VISIBLE);
+													requestUberButton.setText("Request \u040F\u0432\u0454\u0433");
+													requestActive = false;
+													driverActive = false;
+												}
+											}, 5000);
+										}
+										else {
+											Double distanceRounded = (double)Math.round((distance * 10) / 10);
+											infoTextView.setText("Your driver is " + distanceRounded + " kilometers away!");
+
+											LatLng driverLocationLatLng = new LatLng(driverLocation.getLatitude(), driverLocation.getLongitude());
+											LatLng requestLocationLatLng = new LatLng(userLocation.getLatitude(), userLocation.getLongitude());
+
+											ArrayList<Marker> markers = new ArrayList<>();
+
+											mMap.clear();
+											markers.add(mMap.addMarker(new MarkerOptions().position(driverLocationLatLng).title("Driver Location")));
+											markers.add(mMap.addMarker(new MarkerOptions().position(requestLocationLatLng).title("Your Location").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))));
+
+											LatLngBounds.Builder builder = new LatLngBounds.Builder();
+											for (Marker marker : markers) {
+												builder.include(marker.getPosition());
+											}
+											LatLngBounds bounds = builder.build();
+											int padding = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP,64, getApplicationContext().getResources().getDisplayMetrics());
+											CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngBounds(bounds, padding);
+											mMap.animateCamera(cameraUpdate);
+											requestUberButton.setVisibility(View.INVISIBLE);
+											handler.postDelayed(new Runnable() {
+												@Override
+												public void run() {
+													checkForUpdates();
+												}
+											}, 3000);
+										}
+
+									}
+								}
+							}
+						}
+					});
 				}
 
 				handler.postDelayed(new Runnable() {
@@ -79,7 +158,7 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 
 	public void requestUber(View view) {
 		if (requestActive) {
-			ParseQuery<ParseObject> query = new ParseQuery<ParseObject>("Request");
+			ParseQuery<ParseObject> query = new ParseQuery<>("Request");
 			query.whereEqualTo("username", ParseUser.getCurrentUser().getUsername());
 			query.findInBackground(new FindCallback<ParseObject>() {
 				@Override
@@ -140,14 +219,13 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_rider);
-		// Obtain the SupportMapFragment and get notified when the map is ready to be used.
-		SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-				.findFragmentById(R.id.map);
+		SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+
 		mapFragment.getMapAsync(this);
 		requestUberButton = findViewById(R.id.requestUberButton);
 		requestUberButton.setText("Request \u040F\u0432\u0454\u0433");
 		infoTextView = findViewById(R.id.infoTextView);
-		ParseQuery<ParseObject> query = new ParseQuery<ParseObject>("Request");
+		ParseQuery<ParseObject> query = new ParseQuery<>("Request");
 		query.whereEqualTo("username", ParseUser.getCurrentUser().getUsername());
 		query.findInBackground(new FindCallback<ParseObject>() {
 			@Override
@@ -174,19 +252,13 @@ public class RiderActivity extends FragmentActivity implements OnMapReadyCallbac
 			}
 
 			@Override
-			public void onStatusChanged(String s, int i, Bundle bundle) {
-
-			}
+			public void onStatusChanged(String s, int i, Bundle bundle) { }
 
 			@Override
-			public void onProviderEnabled(String s) {
-
-			}
+			public void onProviderEnabled(String s) { }
 
 			@Override
-			public void onProviderDisabled(String s) {
-
-			}
+			public void onProviderDisabled(String s) { }
 		};
 
 		if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
