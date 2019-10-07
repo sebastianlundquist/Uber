@@ -6,10 +6,10 @@ import androidx.core.content.ContextCompat;
 import android.content.Intent;
 import android.graphics.PorterDuff;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.parse.LogInCallback;
 import com.parse.ParseAnonymousUtils;
@@ -19,17 +19,35 @@ import com.parse.SaveCallback;
 
 public class MainActivity extends AppCompatActivity {
 
-	public void redirect() {
-		if (ParseUser.getCurrentUser().get("isRiderOrDriver").equals("rider")) {
-			Intent intent = new Intent(getApplicationContext(), RiderActivity.class);
-			startActivity(intent);
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_main);
+		getSupportActionBar().hide();
+
+		TextView logoTextView = findViewById(R.id.logoTextView);
+		logoTextView.setText("\u040F\u0432\u0454\u0433");
+		Switch userSwitch = findViewById(R.id.userSwitch);
+		userSwitch.getTrackDrawable().setColorFilter(ContextCompat.getColor(this, R.color.switch_track_color), PorterDuff.Mode.SRC_IN);
+
+		// Login anonymously if not already logged in
+		if (ParseUser.getCurrentUser() == null) {
+			ParseAnonymousUtils.logIn(new LogInCallback() {
+				@Override
+				public void done(ParseUser user, ParseException e) {
+					if (e != null)
+						Toast.makeText(MainActivity.this, "Anonymous login failed.", Toast.LENGTH_SHORT).show();
+				}
+			});
 		}
+		// Redirect to driver or rider activity if already logged in
 		else {
-			Intent intent = new Intent(getApplicationContext(), ViewRequestsActivity.class);
-			startActivity(intent);
+			if (ParseUser.getCurrentUser().get("isRiderOrDriver") != null)
+				redirect();
 		}
 	}
 
+	// Save driver/rider setting and redirect appropriately when finished
 	public void getStarted(View view) {
 		Switch userSwitch = findViewById(R.id.userSwitch);
 		String userType = "rider";
@@ -43,37 +61,13 @@ public class MainActivity extends AppCompatActivity {
 				redirect();
 			}
 		});
-		Log.i("Info", "Redirecting as " + ParseUser.getCurrentUser().get("isRiderOrDriver"));
 	}
 
-	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity_main);
-		getSupportActionBar().hide();
-		TextView logoTextView = findViewById(R.id.logoTextView);
-		logoTextView.setText("\u040F\u0432\u0454\u0433");
-		Switch userSwitch = findViewById(R.id.userSwitch);
-		userSwitch.getTrackDrawable().setColorFilter(ContextCompat.getColor(this, R.color.switch_track_color), PorterDuff.Mode.SRC_IN);
-
-		if (ParseUser.getCurrentUser() == null) {
-			ParseAnonymousUtils.logIn(new LogInCallback() {
-				@Override
-				public void done(ParseUser user, ParseException e) {
-					if (e == null) {
-						Log.i("Info", "Login successful");
-					}
-					else {
-						Log.i("Info", "Login successful");
-					}
-				}
-			});
-		}
-		else {
-			if (ParseUser.getCurrentUser().get("isRiderOrDriver") != null) {
-				Log.i("Info", "Redirecting as " + ParseUser.getCurrentUser().get("isRiderOrDriver"));
-				redirect();
-			}
-		}
+	// Start appropriate activity
+	public void redirect() {
+		if (ParseUser.getCurrentUser().get("isRiderOrDriver").equals("rider"))
+			startActivity(new Intent(getApplicationContext(), RiderActivity.class));
+		else
+			startActivity(new Intent(getApplicationContext(), ViewRequestsActivity.class));
 	}
 }
